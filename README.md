@@ -5,7 +5,8 @@
 A sender with **no internet** encrypts a payment into a packet. The packet is **gossiped phone to phone** through a simulated mesh (store-and-forward, TTL, replication, loss, delay). When any **bridge** phone finds internet it uploads the still-opaque packet to a Spring Boot backend, which authenticates it, de-duplicates it and settles it **exactly once** (one ledger effect per logical payment) in an atomic database transaction.
 
 > **Scope.** A *software simulation*. No real Bluetooth, NPCI, bank or UPI is involved and every account is fictional. The cryptography, idempotency and settlement code are real and tested; the radio, the phones and the bridge-to-backend hop are simulated.
-
+> 
+<img width="1999" height="1083" alt="image" src="https://github.com/user-attachments/assets/07d5f0e7-7d13-48dc-9c3f-188b5658d7ab" />
 ![The Mesh section: create a payment, a full-width network map on a charcoal canvas, and the run controls directly under it](docs/screenshots/02-mesh-topology-settled.jpg)
 
 **Full documentation:** [`UPI_Mesh_Project_Guide.pdf`](UPI_Mesh_Project_Guide.pdf) (same content as [`UPI_Mesh_Project_Guide.docx`](UPI_Mesh_Project_Guide.docx)): architecture, payment lifecycle, networking concepts, cryptography, database, API reference, dashboard manual, test results, troubleshooting, viva preparation and an optional deployment chapter. Hosting notes: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
