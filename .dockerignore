@@ -1,0 +1,13 @@
+target/
+target.nosync/
+e2e/
+docs/
+data/
+node_modules/
+*.docx
+*.pdf
+*.md
+.git/
+.idea/
+.vscode/
+.DS_Store

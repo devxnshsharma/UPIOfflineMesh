@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UPI Offline Mesh</title>
+<meta name="description" content="Mesh routed deferred payment settlement: encrypted payments hop phone to phone until a bridge finds internet. Software simulation.">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='16' fill='%23061a45'/%3E%3Cpath d='M7 12c6-4 12-4 18 0M7 17c6-4 12-4 18 0M7 22c6-4 12-4 18 0' stroke='white' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<a class="skip" href="#mesh">Skip to the mesh</a>
+<div id="banner" class="banner" hidden role="alert"></div>
+<noscript><div class="banner">This dashboard needs JavaScript. The backend API works without it.</div></noscript>
+
+<!-- ============================ OVERVIEW ============================ -->
+<header class="hero theme-sky" id="overview">
+  <div class="clouds" aria-hidden="true"></div>
+  <svg class="arcs" viewBox="0 0 1440 900" preserveAspectRatio="none" aria-hidden="true">
+    <path d="M-20 700 C 300 520, 560 360, 900 300 S 1300 120, 1500 -20"/>
+    <path d="M-40 880 C 260 700, 420 640, 520 520 S 640 140, 700 -30"/>
+    <path d="M420 960 C 620 780, 760 660, 980 620 S 1300 560, 1500 380"/>
+  </svg>
+  <span class="plus tl" aria-hidden="true">+</span><span class="plus tr" aria-hidden="true">+</span>
+
+  <div class="wrap hero-inner">
+    <div class="topbar">
+      <a class="wordmark" href="#overview" aria-label="UPI Offline Mesh, back to the top">
+        <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M4 9c6-4 14-4 20 0M4 14c6-4 14-4 20 0M4 19c6-4 14-4 20 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        UPI Offline Mesh
+      </a>
+      <div class="top-right">
+        <span class="clock" id="clock" title="Your local time"></span>
+        <span class="pill" title="No real bank, NPCI, UPI or Bluetooth is involved. Every account is fictional.">Simulation &middot; fictional accounts</span>
+        <span class="pill link" id="connPill" title="Live connection to the Spring Boot backend"><i></i><span>connecting</span></span>
+      </div>
+    </div>
+
+    <div class="hero-main">
+      <h1 class="display">Payments built to withstand any <em>blackout</em></h1>
+      <div class="hero-side">
+        <p class="small-copy">UPI Offline Mesh carries encrypted payments from phone to phone until a bridge finds internet, then settles each one exactly once.</p>
+        <p class="serif-lines">Delayed, not lost.<br>Settled once. No duplicates.</p>
+        <div class="cta">
+          <a class="btn solid" href="#pay" id="ctaPay">Start a payment</a>
+          <button class="btn ghost" id="ctaScen" type="button">Run all scenarios</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ridge" aria-hidden="true"><canvas id="halftone"></canvas></div>
+
+    <section class="stats-panel" aria-labelledby="statsTitle">
+      <div class="stats-head">
+        <h2 id="statsTitle" class="label"><i></i>Live overview</h2>
+        <span class="muted-w">Read from the simulator and the database, not hard-coded.</span>
+        <span class="stats-updated" id="statsUpdated">waiting for the backend</span>
+      </div>
+      <div id="stats" class="stats" aria-busy="true"></div>
+    </section>
+  </div>
+</header>
+
+<main id="main">
+<!-- ============================ MESH ============================ -->
+<section class="band theme-dark" id="mesh" aria-labelledby="meshTitle">
+  <span class="plus tl" aria-hidden="true">+</span>
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="label"><i></i>Mesh topology</span>
+        <h2 class="display" id="meshTitle">Hop by hop, until a <em>signal</em> appears.</h2>
+      </div>
+      <p>Devices only hear their neighbours. Each gossip round moves a packet one hop and spends one unit of TTL. Bridges hold it until they get internet.</p>
+    </div>
+
+    <div class="stack">
+      <!-- 1. create a payment: first, so a packet is made, then watched and advanced without scrolling back up -->
+      <section class="panel composer" id="pay" aria-labelledby="payTitle">
+        <div class="panel-head">
+          <h3 id="payTitle">Create a payment</h3>
+          <span class="muted">The sender phone is offline: the payment is encrypted on the device and handed to the mesh, never to the backend.</span>
+        </div>
+        <form id="sendForm" autocomplete="off" novalidate>
+          <div class="composer-grid">
+            <fieldset class="fs">
+              <legend>Payment</legend>
+              <label>From<select id="fSender"></select></label>
+              <label>To<select id="fReceiver"></select></label>
+              <label>Amount (&#8377;)<input id="fAmount" type="number" inputmode="decimal" min="0.01" step="0.01" value="500" aria-describedby="fAmountMsg"><span class="field-msg" id="fAmountMsg"></span></label>
+            </fieldset>
+            <fieldset class="fs">
+              <legend>Routing</legend>
+              <label>Starts at<select id="fStart"></select></label>
+              <label>TTL (hops)<input id="fTtl" type="number" inputmode="numeric" min="1" max="32" value="5" aria-describedby="fTtlMsg"><span class="field-msg" id="fTtlMsg"></span></label>
+            </fieldset>
+            <fieldset class="fs">
+              <legend>Packet</legend>
+              <label>Mode
+                <select id="fMode">
+                  <option value="NORMAL">Normal</option>
+                  <option value="DUPLICATE">Duplicate (copy on every bridge)</option>
+                  <option value="TAMPERED">Tampered (relay flips a byte)</option>
+                  <option value="EXPIRED">Expired (signed too long ago)</option>
+                </select>
+              </label>
+              <p class="mode-note" id="modeNote"></p>
+            </fieldset>
+          </div>
+          <div class="composer-actions">
+            <button class="btn solid" id="btnSend" type="submit">Encrypt &amp; inject into mesh</button>
+            <p class="hint" id="sendHint" role="status"></p>
+          </div>
+        </form>
+        <div class="stages-wrap">
+          <div class="sub">Selected packet: progress so far</div>
+          <ol class="stages" id="stages"></ol>
+        </div>
+      </section>
+
+      <!-- 2. the network: full width, with its legend and the selected device directly under it; the run controls follow immediately -->
+      <section class="panel map-panel" aria-labelledby="mapTitle">
+        <div class="panel-head">
+          <h3 id="mapTitle">Network</h3>
+          <p class="net-summary" id="netSummary"></p>
+          <div class="map-tools" role="group" aria-label="Map view">
+            <button class="btn sm icon" id="mapOut" type="button" aria-label="Zoom out" title="Zoom out">&minus;</button>
+            <button class="btn sm" id="mapFit" type="button" title="Fit the whole network in view">Fit</button>
+            <button class="btn sm icon" id="mapIn" type="button" aria-label="Zoom in" title="Zoom in">+</button>
+          </div>
+        </div>
+        <div class="map-frame">
+          <div class="map-scroll" id="mapScroll" tabindex="0" role="region" aria-label="Network map. When zoomed in or on a narrow screen, scroll or use the arrow keys to pan.">
+            <svg id="topo" role="group" aria-label="Network topology: devices, links and the backend"></svg>
+          </div>
+          <p class="pan-hint" id="panHint" hidden>Scroll sideways to see the whole map &rarr;</p>
+        </div>
+        <div class="legend" role="group" aria-label="Map legend">
+          <div class="lg-group"><b>Devices</b>
+            <span><i class="lg sender"></i>sender phone</span>
+            <span><i class="lg relay"></i>relay</span>
+            <span><i class="lg bridge"></i>bridge</span>
+            <span><i class="lg server"></i>backend</span>
+          </div>
+          <div class="lg-group"><b>Links</b>
+            <span><i class="lg line"></i>neighbour in range</span>
+            <span><i class="lg tx"></i>sent last round</span>
+            <span><i class="lg on"></i>bridge online</span>
+            <span><i class="lg up"></i>uploaded to backend</span>
+            <span><i class="lg lost"></i>lost, retried later</span>
+            <span><i class="lg out"></i>offline or out of the mesh</span>
+          </div>
+          <div class="lg-group"><b>Marks</b>
+            <span><i class="lg sel"></i>selected</span>
+            <span><i class="lg count">2</i>packets held</span>
+            <span><i class="lg count wait">1</i>waiting to upload</span>
+            <span><i class="lg dot"></i>internet on</span>
+            <span><i class="lg low">ttl 1</i>low TTL</span>
+            <span><i class="lg pill ok"></i>settled</span>
+            <span><i class="lg pill dup"></i>duplicate dropped</span>
+            <span><i class="lg pill bad"></i>rejected or failed</span>
+          </div>
+        </div>
+        <div id="deviceDock" class="dock" aria-live="polite"></div>
+      </section>
+
+      <!-- 3. run the network: directly under the map it drives -->
+      <section class="panel" id="ctlPanel" aria-labelledby="ctlTitle">
+        <div class="panel-head">
+          <h3 id="ctlTitle">Run the network</h3>
+          <span class="muted">Simulated radio and bridges. Uploads go to the real backend.</span>
+        </div>
+        <div class="ctl-grid">
+          <div class="ctl-group">
+            <h4>Advance</h4>
+            <div class="btn-row">
+              <button class="btn" id="btnGossip" type="button">Gossip round</button>
+              <span class="btn-combo">
+                <button class="btn" id="btnGossipN" type="button">Gossip &times;</button>
+                <input id="gRounds" type="number" inputmode="numeric" min="1" max="50" value="4" aria-label="Number of gossip rounds">
+                <span class="unit">rounds</span>
+              </span>
+              <button class="btn solid" id="btnFlush" type="button">Bridges upload</button>
+            </div>
+            <p class="note">A gossip round moves every packet one hop. Bridges upload sends what the online bridges hold to the backend.</p>
+            <p class="hint" id="ctlHint" role="status"></p>
+          </div>
+          <div class="ctl-group">
+            <h4>Bridge internet</h4>
+            <div class="toggles" id="bridgeToggles"></div>
+            <p class="note">Takes effect at once. A bridge that goes offline keeps the packets it already holds.</p>
+          </div>
+          <div class="ctl-group">
+            <h4>Reset</h4>
+            <div class="btn-row"><button class="btn danger" id="btnReset" type="button">Reset to baseline</button></div>
+            <p class="note">Restores balances, ledger, idempotency records and the mesh. It cannot be undone.</p>
+          </div>
+        </div>
+
+        <details class="adv" id="advSettings">
+          <summary><span class="adv-title">Simulation settings</span><span class="adv-now" id="settingsSummary"></span></summary>
+          <div class="settings">
+            <label>Default TTL (hops)<input id="sTtl" type="number" inputmode="numeric" min="1" max="32" aria-describedby="sTtlMsg"><span class="applies" id="sTtlMsg">Applies to payments created from now on.</span></label>
+            <label for="sLoss">Packet loss <output id="sLossOut" for="sLoss">0%</output><input id="sLoss" type="range" min="0" max="100" step="5" aria-describedby="sLossMsg"><span class="applies" id="sLossMsg">Applies from the next gossip round.</span></label>
+            <label>Delay (rounds)<input id="sDelay" type="number" inputmode="numeric" min="0" max="20" aria-describedby="sDelayMsg"><span class="applies" id="sDelayMsg">Applies to transmissions sent from now on.</span></label>
+            <label>Packet expiry (seconds)<input id="sExpiry" type="number" inputmode="numeric" min="1" aria-describedby="sExpiryMsg"><span class="applies" id="sExpiryMsg">Applies at once. A copy that expires stays expired.</span></label>
+            <label>Seed<input id="sSeed" type="number" inputmode="numeric" aria-describedby="sSeedMsg"><span class="applies" id="sSeedMsg">Applies at once and restarts the random sequence.</span></label>
+            <label>Topology
+              <select id="sTopo" aria-describedby="sTopoMsg">
+                <option value="demo">Demo (3 bridges)</option>
+                <option value="line">Line (5 hops)</option>
+                <option value="full-mesh">Full mesh (broadcast)</option>
+              </select>
+              <span class="applies warn" id="sTopoMsg">Rebuilds the mesh and resets balances and ledger.</span>
+            </label>
+          </div>
+          <p class="field-msg settings-msg" id="settingsMsg" role="alert"></p>
+          <div class="confirm" id="topoConfirm" hidden>
+            <span id="topoConfirmText"></span>
+            <button class="btn sm danger" id="topoApply" type="button">Switch and reset</button>
+            <button class="btn sm" id="topoCancel" type="button">Cancel</button>
+          </div>
+        </details>
+
+        <details class="adv" id="adminBox" hidden>
+          <summary><span class="adv-title">Admin access</span><span class="adv-now" id="adminState">locked</span></summary>
+          <form class="admin-form" id="adminForm" autocomplete="off">
+            <label>Admin token<input id="adminToken" type="password" autocomplete="off" spellcheck="false"></label>
+            <button class="btn sm solid" type="submit">Use token</button>
+            <button class="btn sm" id="adminClear" type="button">Forget</button>
+          </form>
+          <p class="note">This deployment protects reset, simulation settings and topology changes. The token is checked by the backend, kept only in this tab, and sent as an Authorization header.</p>
+        </details>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- =========================== PACKETS =========================== -->
+<section class="band theme-light" id="packets" aria-labelledby="packetsTitle">
+  <span class="plus tl" aria-hidden="true">+</span>
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="label"><i></i>Packet inspection</span>
+        <h2 class="display" id="packetsTitle">Relays carry it. Only the backend can <em>read</em> it.</h2>
+      </div>
+      <p>Every packet is AES-256-GCM ciphertext with an RSA-wrapped key. A relay sees a fingerprint, a TTL and a hop count, nothing else.</p>
+    </div>
+    <section class="panel" id="packetPanel" aria-label="Packets in the mesh">
+      <div class="packet-grid">
+        <div class="packet-side">
+          <div class="sub first">Packets in the mesh</div>
+          <div id="packetList" class="packet-list"></div>
+        </div>
+        <div id="packetDetail" class="packet-detail"></div>
+      </div>
+    </section>
+  </div>
+</section>
+
+<!-- =========================== SETTLEMENT =========================== -->
+<section class="band theme-mist" id="ledgerBand" aria-labelledby="ledgerTitle">
+  <span class="plus tl" aria-hidden="true">+</span>
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="label"><i></i>Settlement</span>
+        <h2 class="display" id="ledgerTitle">One payment, one ledger entry, however many <em>copies</em> arrive.</h2>
+      </div>
+      <p>Settled payments, duplicate drops and rejections are shown side by side. Balances change only when the backend confirms.</p>
+    </div>
+    <div class="ledger-grid">
+      <section class="panel" aria-labelledby="ledgerHead">
+        <div class="panel-head"><h3 id="ledgerHead">Transaction ledger</h3><span class="muted" id="ledgerNote">every delivery the backend handled, newest first</span></div>
+        <div class="tbl-scroll" id="ledgerScroll" role="region" aria-label="Transaction ledger, scrollable" tabindex="0">
+          <table id="ledger" class="data">
+            <thead><tr><th scope="col">Time</th><th scope="col">Outcome</th><th scope="col">Payment</th><th scope="col" class="num">Amount</th><th scope="col">Bridge</th><th scope="col" class="num">Hops</th><th scope="col">Packet</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="empty" id="ledgerEmpty">No deliveries yet. Create a payment, gossip, bring a bridge online and upload.</p>
+      </section>
+      <section class="panel" aria-labelledby="acctHead">
+        <div class="panel-head"><h3 id="acctHead">Accounts</h3><span class="muted">simulated, from the database</span></div>
+        <div class="tbl-scroll" role="region" aria-label="Account balances, scrollable" tabindex="0">
+          <table id="accounts" class="data">
+            <thead><tr><th scope="col">VPA</th><th scope="col">Holder</th><th scope="col" class="num">Balance</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <p class="note" id="moneyTotal"></p>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ PROVE IT ============================ -->
+<section class="band theme-dark" id="prove" aria-labelledby="proveTitle">
+  <span class="plus tl" aria-hidden="true">+</span>
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="label"><i></i>Prove it</span>
+        <h2 class="display" id="proveTitle">Break it on <em>purpose</em>.</h2>
+      </div>
+      <p>Scripted scenarios drive the same endpoints as the buttons above and check balances and ledger. Experiments sweep one network parameter at a time on the real mesh and the real backend.</p>
+    </div>
+
+    <div class="stack">
+      <section class="panel" id="scenarioPanel" aria-labelledby="scnTitle">
+        <div class="panel-head"><h3 id="scnTitle">Guided scenarios</h3><span class="muted">Each one resets the demo first, then runs real requests and checks the live state.</span></div>
+        <div class="scn-bar">
+          <button class="btn solid" id="btnRunAll" type="button">Run all 8 scenarios</button>
+          <p class="scn-summary" id="scnSummary" role="status">Not run yet.</p>
+        </div>
+        <div class="progress" id="scnProgress" hidden aria-hidden="true"><i></i></div>
+        <ol class="scn-list" id="scenarioList"></ol>
+      </section>
+
+      <section class="panel" id="expPanel" aria-labelledby="expTitle">
+        <div class="panel-head"><h3 id="expTitle">Networking experiments</h3><span class="muted">Sweeps one parameter on private copies of the mesh and the real backend. Same seed, same numbers.</span></div>
+
+        <form class="exp-form" id="expForm" novalidate autocomplete="off">
+          <label class="f-type">Experiment<select id="expType"></select></label>
+          <label class="f-values">Values to test, comma separated<input id="expValues" type="text" inputmode="decimal" aria-describedby="expValuesMsg"><span class="field-msg" id="expValuesMsg"></span></label>
+          <label class="f-runs">Runs per value<input id="expRuns" type="number" inputmode="numeric" min="1" max="100" aria-describedby="expRunsMsg"><span class="field-msg" id="expRunsMsg"></span></label>
+          <label class="f-seed">Seed<input id="expSeed" type="number" inputmode="numeric" value="42" aria-describedby="expSeedMsg"><span class="field-msg" id="expSeedMsg"></span></label>
+          <div class="f-run"><button class="btn solid" id="btnExp" type="submit">Run experiment</button><span class="field-msg"></span></div>
+        </form>
+        <p class="exp-desc" id="expDesc"></p>
+        <p class="exp-estimate" id="expEstimate" role="status"></p>
+        <p class="exp-error field-msg" id="expError" role="alert"></p>
+        <div class="progress" id="expBusy" hidden role="status" aria-label="Experiment running"><i></i></div>
+
+        <div id="expOut" class="exp-out" hidden>
+          <div class="exp-result-head" id="expHead"></div>
+          <div class="exp-bar">
+            <label>Metric shown in the chart<select id="expMetric"></select></label>
+            <label>Earlier runs<select id="expHistory"></select></label>
+          </div>
+          <figure class="chart" id="expChartWrap">
+            <figcaption id="expChartTitle"></figcaption>
+            <svg id="expChart" role="img" aria-label="Experiment chart"></svg>
+          </figure>
+          <div class="exp-tables">
+            <div class="exp-table">
+              <div class="tbl-scroll" role="region" aria-label="Summary results, scrollable" tabindex="0"><table id="expSummary" class="data"></table></div>
+            </div>
+            <div class="exp-table">
+              <div class="tbl-scroll" role="region" aria-label="Diagnostic metrics, scrollable" tabindex="0"><table id="expDiag" class="data"></table></div>
+            </div>
+          </div>
+          <details class="params">
+            <summary>Parameters used for this result</summary>
+            <div class="params-bar"><span class="muted">Send this request to reproduce the result exactly.</span><button class="btn sm" id="btnCopyParams" type="button">Copy</button></div>
+            <pre id="expParams"></pre>
+          </details>
+        </div>
+      </section>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ ACTIVITY ============================ -->
+<section class="band theme-light" id="activity" aria-labelledby="activityTitle">
+  <span class="plus tl" aria-hidden="true">+</span>
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <span class="label"><i></i>Activity log</span>
+        <h2 class="display" id="activityTitle">Everything the mesh <em>did</em>, newest first.</h2>
+      </div>
+      <p id="logNote">The simulator keeps its most recent events. Packet history keeps each packet's own full trail.</p>
+    </div>
+    <section class="panel" aria-label="Activity log">
+      <div id="log" class="log" role="region" aria-label="Activity log, scrollable" tabindex="0"></div>
+    </section>
+  </div>
+</section>
+</main>
+
+<footer class="foot theme-light">
+  <div class="wrap">
+    <p>Prototype for a Computer Networks project. The mesh, Bluetooth and UPI are simulated; the encryption (AES-256-GCM, RSA-OAEP), SHA-256 idempotency and the atomic ledger are real. Every account is fictional.</p>
+    <p id="footMode" class="foot-mode"></p>
+  </div>
+</footer>
+
+<nav class="pillnav" aria-label="Sections">
+  <a class="mark" href="#overview" aria-label="Back to the top">
+    <svg viewBox="0 0 28 28" aria-hidden="true"><path d="M4 9c6-4 14-4 20 0M4 14c6-4 14-4 20 0M4 19c6-4 14-4 20 0" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>
+  </a>
+  <div class="links">
+    <a href="#overview"><span class="full">Overview</span><span class="short">Home</span></a>
+    <a href="#mesh">Mesh</a>
+    <a href="#packets">Packets</a>
+    <a href="#ledgerBand"><span class="full">Settlement</span><span class="short">Ledger</span></a>
+    <a href="#prove"><span class="full">Prove it</span><span class="short">Prove</span></a>
+    <a href="#activity">Log</a>
+  </div>
+</nav>
+
+<div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+<script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+# Render Blueprint for a throwaway demo of the dashboard. Nothing in this file is a secret.
+# Read docs/DEPLOYMENT.md before using it: the hosted demo is one shared sandbox, and it has not been deployed from this repository yet.
+services:
+  - type: web
+    name: upi-offline-mesh
+    runtime: docker
+    plan: free                      # 512 MB, spins down after 15 minutes without traffic; in-memory data is lost then
+    healthCheckPath: /api/health
+    autoDeployTrigger: "off"        # deploy by hand until you have checked the hosted URL
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: hosted
+      - key: ADMIN_TOKEN
+        sync: false                 # Render asks for it when the Blueprint is first created. Generate one: openssl rand -base64 32
+      # Optional managed PostgreSQL so balances and the ledger survive restarts: uncomment this and the databases block below.
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: upimesh-db
+      #     property: connectionString
+
+# databases:
+#   - name: upimesh-db
+#     plan: free                    # a free Render Postgres expires 30 days after creation
+#     databaseName: upimesh
+#     user: upimesh

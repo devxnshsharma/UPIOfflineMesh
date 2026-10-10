@@ -1,0 +1,8 @@
+target/
+target.nosync/
+.idea/
+*.iml
+.DS_Store
+.vscode/
+node_modules/
+data/
